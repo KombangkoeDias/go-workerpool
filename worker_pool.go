@@ -20,7 +20,7 @@ type WorkerPool struct {
 	group   *errgroup.Group
 	tasks   map[uint64]*Task
 	started atomic.Bool
-	lock    sync.Mutex
+	lock    sync.RWMutex
 }
 
 type Result struct {
@@ -54,8 +54,8 @@ func (pool *WorkerPool) AddTask(task *Task) error {
 }
 
 func (pool *WorkerPool) GetAllTasks() []*Task {
-	pool.lock.Lock()
-	defer pool.lock.Unlock()
+	pool.lock.RLock()
+	defer pool.lock.RUnlock()
 	tasks := make([]*Task, 0, len(pool.tasks))
 	for _, task := range pool.tasks {
 		tasks = append(tasks, task)
@@ -64,6 +64,8 @@ func (pool *WorkerPool) GetAllTasks() []*Task {
 }
 
 func (pool *WorkerPool) RemoveTaskByID(taskID uint64) error {
+	pool.lock.Lock()
+	defer pool.lock.Unlock()
 	if _, ok := pool.tasks[taskID]; !ok {
 		return errors.New("Task ID not found")
 	}
@@ -72,6 +74,8 @@ func (pool *WorkerPool) RemoveTaskByID(taskID uint64) error {
 }
 
 func (pool *WorkerPool) Run() (resultChan Results, err error) {
+	pool.lock.Lock()
+	defer pool.lock.Unlock()
 	if pool.started.Load() {
 		return nil, errors.New("Can't Run: Pool already started")
 	}
@@ -98,6 +102,8 @@ func (pool *WorkerPool) Run() (resultChan Results, err error) {
 }
 
 func (pool *WorkerPool) Reset() {
+	pool.lock.Lock()
+	defer pool.lock.Unlock()
 	pool.started.Store(false)
 	pool.tasks = make(map[uint64]*Task)
 }
